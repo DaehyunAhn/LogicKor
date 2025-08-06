@@ -163,10 +163,14 @@ def main():
         client = create_openai_client(args.openai_api_key)
 
     input_dir = Path(args.model_output_dir)
-    output_dir = Path("./evaluated")
-
+    output_dir = "./evaluated/" + args.model.split('/')[-1]
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
     # Filter out hidden files
-    json_files = [file for file in input_dir.rglob("*.jsonl") if not is_hidden(file)]
+    json_files = [file for file in input_dir.rglob("default.jsonl") if not is_hidden(file)]
+
     print(f"Found {len(json_files)} JSON files to process")
 
     for file_path in json_files:

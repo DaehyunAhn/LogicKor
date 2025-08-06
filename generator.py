@@ -25,6 +25,8 @@ parser.add_argument(
     default="yanolja/EEVE-Korean-Instruct-2.8B-v1.0",
 )
 parser.add_argument("-ml", "--model_len", help=" : Maximum Model Length", default=4096, type=int)
+parser.add_argument("-s", "--strategy", help=" : A single strategy to use", default=None, type=str, 
+                choices=["default", "1-shot", "cot-1-shot"])
 args = parser.parse_args()
 
 print(f"Args - {args}")
@@ -35,8 +37,9 @@ gpu_counts = len(args.gpu_devices.split(","))
 llm = LLM(
     model=args.model,
     tensor_parallel_size=gpu_counts,
-    max_model_len=args.model_len,
     gpu_memory_utilization=0.8,
+    enable_reasoning=True,
+    reasoning_parser="qwen3",
     trust_remote_code=True,  # !
 )
 
@@ -44,15 +47,21 @@ sampling_params = SamplingParams(
     temperature=0,
     skip_special_tokens=True,
     max_tokens=args.model_len,
+    
     stop=["<|endoftext|>", "[INST]", "[/INST]", "<|im_end|>", "<|end|>", "<|eot_id|>", "<end_of_turn>", "<eos>"],
 )
 
 df_questions = pd.read_json("questions.jsonl", orient="records", encoding="utf-8-sig", lines=True)
 
-if not os.path.exists("./generated/" + args.model):
-    os.makedirs("./generated/" + args.model)
+if not os.path.exists("./generated/" + args.model.split('/')[-1]):
+    os.makedirs("./generated/" + args.model.split('/')[-1])
 
-for strategy_name, prompts in PROMPT_STRATEGY.items():
+if args.strategy is not None:
+    prompt_strategy = {args.strategy: PROMPT_STRATEGY[args.strategy]}
+else:
+    prompt_strategy = PROMPT_STRATEGY
+
+for strategy_name, prompts in prompt_strategy.items():
 
     def format_single_turn_question(question):
         return llm.llm_engine.tokenizer.tokenizer.apply_chat_template(
@@ -63,9 +72,16 @@ for strategy_name, prompts in PROMPT_STRATEGY.items():
 
     single_turn_questions = df_questions["questions"].map(format_single_turn_question)
     print(single_turn_questions.iloc[0])
-    single_turn_outputs = [
-        output.outputs[0].text.strip() for output in llm.generate(single_turn_questions, sampling_params)
-    ]
+
+    single_turn_outputs = []
+    outputs = llm.generate(single_turn_questions, sampling_params)
+    for idx, output in enumerate(outputs):
+        try:
+            eot_idx = output.outputs[0].text.index("</think>")
+            single_turn_outputs.append(output.outputs[0].text[eot_idx+len("</think>"):].strip())
+        except:
+            print(f"strategy: {strategy_name}, single turn, idx: {idx}")
+            single_turn_outputs.append(output.outputs[0].text.strip())
 
     def format_double_turn_question(question, single_turn_output):
         return llm.llm_engine.tokenizer.tokenizer.apply_chat_template(
@@ -83,9 +99,16 @@ for strategy_name, prompts in PROMPT_STRATEGY.items():
         lambda x: format_double_turn_question(x["questions"], single_turn_outputs[x["id"] - 1]),
         axis=1,
     )
-    multi_turn_outputs = [
-        output.outputs[0].text.strip() for output in llm.generate(multi_turn_questions, sampling_params)
-    ]
+
+    multi_turn_outputs = []
+    outputs = llm.generate(multi_turn_questions, sampling_params)
+    for output in outputs:
+        try:
+            eot_idx = output.outputs[0].text.index("</think>")
+            multi_turn_outputs.append(output.outputs[0].text[eot_idx+len("</think>"):].strip())
+        except:
+            print(f"strategy: {strategy_name}, multi turn, idx: {idx}")
+            multi_turn_outputs.append(output.outputs[0].text.strip())
 
     df_output = pd.DataFrame(
         {
@@ -97,7 +120,7 @@ for strategy_name, prompts in PROMPT_STRATEGY.items():
         }
     )
     df_output.to_json(
-        "./generated/" + os.path.join(args.model, f"{strategy_name}.jsonl"),
+        "./generated/" + os.path.join(args.model.split('/')[-1], f"{strategy_name}.jsonl"),
         orient="records",
         lines=True,
         force_ascii=False,

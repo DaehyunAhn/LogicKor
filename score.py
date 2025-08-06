@@ -1,12 +1,14 @@
 import argparse
-import glob
+import glob, json
 
 import pandas as pd
 
 # 파일 경로 패턴
 # file_pattern = './judge_20240418_103542.jsonl'
+# output_path_pattern = './score_20240418_103542.json'
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--print", help="judge Output File Location", default=None)
+parser.add_argument("-o", "--output-path", help="score Output File Location", default=None)
 args = parser.parse_args()
 
 if args.print is None:
@@ -42,6 +44,7 @@ table_header = "| Category | Single turn | Multi turn |\n|---|---|---|"
 
 # 표의 내용 생성
 table_rows = []
+table_dict = {}
 for category, scores in category_scores.items():
     avg_single = sum(scores["single_scores"]) / len(scores["single_scores"])
     avg_multi = sum(scores["multi_scores"]) / len(scores["multi_scores"])
@@ -49,7 +52,10 @@ for category, scores in category_scores.items():
 
     total_single_scores.extend(scores["single_scores"])
     total_multi_scores.extend(scores["multi_scores"])
-
+    table_dict[category] = {
+        "single_turn": avg_single,
+        "multi_turn": avg_multi
+    }
 # 카테고리별 점수 평균 출력
 print(table_header)
 for row in table_rows:
@@ -65,3 +71,13 @@ print("\n| Category | Score |\n|---|---|")
 print(f"| Single turn | {avg_total_single:.2f} |")
 print(f"| Multi turn | {avg_total_multi:.2f} |")
 print(f"| Overall | {avg_total:.2f} |")
+
+table_dict["Overall"] = {
+        "single_turn": avg_total_single,
+        "multi_turn": avg_total_multi,
+        "overall": avg_total
+    }
+
+if args.output_path is not None:
+    with open(args.output_path, "w", encoding="utf-8") as f:
+        json.dump(table_dict, f, indent=4,ensure_ascii=False)
