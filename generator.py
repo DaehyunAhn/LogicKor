@@ -27,6 +27,16 @@ parser.add_argument(
 parser.add_argument("-ml", "--model_len", help=" : Maximum Model Length", default=4096, type=int)
 parser.add_argument("-s", "--strategy", help=" : A single strategy to use", default=None, type=str, 
                 choices=["default", "1-shot", "cot-1-shot"])
+parser.add_argument("-q",
+    "--question_json_path",
+    help=" : Question Json File Path",
+    default="questions.jsonl",
+    type=str)
+parser.add_argument("-o",
+    "--output_dir",
+    help=" : Output Directory",
+    default="./generated/",
+    type=str)
 args = parser.parse_args()
 
 print(f"Args - {args}")
@@ -51,10 +61,10 @@ sampling_params = SamplingParams(
     stop=["<|endoftext|>", "[INST]", "[/INST]", "<|im_end|>", "<|end|>", "<|eot_id|>", "<end_of_turn>", "<eos>"],
 )
 
-df_questions = pd.read_json("questions.jsonl", orient="records", encoding="utf-8-sig", lines=True)
+df_questions = pd.read_json(args.question_json_path, orient="records", encoding="utf-8-sig", lines=True)
 
-if not os.path.exists("./generated/" + args.model.split('/')[-1]):
-    os.makedirs("./generated/" + args.model.split('/')[-1])
+if not os.path.exists(args.output_dir):
+    os.makedirs(args.output_dir)
 
 if args.strategy is not None:
     prompt_strategy = {args.strategy: PROMPT_STRATEGY[args.strategy]}
@@ -120,7 +130,7 @@ for strategy_name, prompts in prompt_strategy.items():
         }
     )
     df_output.to_json(
-        "./generated/" + os.path.join(args.model.split('/')[-1], f"{strategy_name}.jsonl"),
+        os.path.join(args.output_dir, f"{strategy_name}.jsonl"),
         orient="records",
         lines=True,
         force_ascii=False,

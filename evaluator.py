@@ -27,6 +27,7 @@ USE_AZURE_OPENAI = AZURE_ENDPOINT is not None and AZURE_DEPLOYMENT_NAME is not N
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--model-output-dir", help="Model Output Directory", required=True)
+    parser.add_argument("-e", "--eval-output-dir", help="Evaluation Output Directory", required=True)
     parser.add_argument("-k", "--openai-api-key", help="OpenAI API Key", required=True)
     parser.add_argument("-j", "--judge-model", help="Judge Model", default="gpt-4-1106-preview")
     parser.add_argument("-t", "--threads", help="Thread count", default=42, type=int)
@@ -163,11 +164,11 @@ def main():
         client = create_openai_client(args.openai_api_key)
 
     input_dir = Path(args.model_output_dir)
-    output_dir = "./evaluated/" + args.model.split('/')[-1]
-    
+    output_dir = Path(args.eval_output_dir)
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     # Filter out hidden files
     json_files = [file for file in input_dir.rglob("default.jsonl") if not is_hidden(file)]
 
