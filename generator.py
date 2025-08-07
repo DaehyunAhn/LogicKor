@@ -112,7 +112,7 @@ for strategy_name, prompts in prompt_strategy.items():
 
     multi_turn_outputs = []
     outputs = llm.generate(multi_turn_questions, sampling_params)
-    for output in outputs:
+    for idx, output in enumerate(outputs):
         try:
             eot_idx = output.outputs[0].text.index("</think>")
             multi_turn_outputs.append(output.outputs[0].text[eot_idx+len("</think>"):].strip())
